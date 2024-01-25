@@ -1,0 +1,151 @@
+package NT;
+
+import javax.crypto.*;
+import java.io.UnsupportedEncodingException;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
+
+
+public class Test_DS_2 {
+	
+	private static final int DEFAULT_KEY_SIZE = 2048;
+    private static final String KEY_FACTORY_ALGORITHM = "RSA";
+    private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
+    private static final String CHARSET = "UTF-8";
+	
+    
+    //키쌍 생성
+    public static KeyPair generateKeyPair() throws NoSuchAlgorithmException {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance(KEY_FACTORY_ALGORITHM);
+        generator.initialize(DEFAULT_KEY_SIZE, new SecureRandom());
+        KeyPair pair = generator.generateKeyPair();
+        return pair;
+    }
+	
+    //암호화
+    public static String encrypt(String plainText, byte[] encodedPublicKey) throws NoSuchAlgorithmException {
+        PublicKey publicKey = Test_DS_2.generatePublicKey(encodedPublicKey);
+        try {
+            Cipher cipher = Cipher.getInstance(KEY_FACTORY_ALGORITHM);
+            cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+            byte[] bytes = cipher.doFinal(plainText.getBytes(CHARSET));
+            return Base64.getEncoder().encodeToString(bytes);
+        } catch (NoSuchPaddingException | InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException | BadPaddingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+	
+    //복호화
+    public static String decrypt(String cipherText, byte[] encodedPrivateKey) throws NoSuchAlgorithmException {
+        PrivateKey privateKey = Test_DS_2.generatePrivateKey(encodedPrivateKey);
+        try {
+            byte[] bytes = Base64.getDecoder().decode(cipherText);
+            Cipher cipher = Cipher.getInstance(KEY_FACTORY_ALGORITHM);
+            cipher.init(Cipher.DECRYPT_MODE, privateKey);
+            return new String(cipher.doFinal(bytes), CHARSET);
+        } catch (NoSuchPaddingException | InvalidKeyException | UnsupportedEncodingException | IllegalBlockSizeException | BadPaddingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+	//서명
+    public static String sign(String plainText, byte[] encodedPrivateKey) {
+        try {
+            Signature privateSignature = Signature.getInstance(SIGNATURE_ALGORITHM);
+            privateSignature.initSign(Test_DS_2.generatePrivateKey(encodedPrivateKey));
+            privateSignature.update(plainText.getBytes(CHARSET));
+            byte[] signature = privateSignature.sign();
+            return Base64.getEncoder().encodeToString(signature);
+        } catch (NoSuchAlgorithmException | InvalidKeyException | UnsupportedEncodingException | SignatureException e) {
+            throw new RuntimeException(e);
+        }
+    }
+	
+    //검증
+    public static boolean verify(String plainText, String signature, byte[] encodedPublicKey) {
+        PublicKey publicKey = Test_DS_2.generatePublicKey(encodedPublicKey);
+        return Test_DS_2.verifySignature(plainText, signature, publicKey);
+    }
+    
+    //공개키 생성
+    private static PublicKey generatePublicKey(byte[] encodedPublicKey) {
+        try {
+            KeyFactory keyFactory = KeyFactory.getInstance(KEY_FACTORY_ALGORITHM);
+            return keyFactory.generatePublic(new X509EncodedKeySpec(encodedPublicKey));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (InvalidKeySpecException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+    
+    //개인키 생성
+    private static PrivateKey generatePrivateKey(byte[] encodedPrivateKey) {
+        try {
+            KeyFactory keyFactory = KeyFactory.getInstance(KEY_FACTORY_ALGORITHM);
+            return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(encodedPrivateKey));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (InvalidKeySpecException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+	
+    private static boolean verifySignature(String plainText, String signature, PublicKey publicKey) {
+        Signature sig;
+        try {
+            sig = Signature.getInstance(SIGNATURE_ALGORITHM);
+            sig.initVerify(publicKey);
+            sig.update(plainText.getBytes());
+            if (!sig.verify(Base64.getDecoder().decode(signature)))
+                throw new InvalidSignatureException("It was awesome! Signature hasn't be invalid");
+        } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
+            throw new RuntimeException(e);
+        } catch (InvalidSignatureException e) {
+            // InvalidSignatureException 처리 추가
+            System.out.println(e.getMessage());
+            return false;
+        }
+        return true;
+    }
+
+    //---------------------------------------------------------------------------------------------------------
+
+	public static void main(String[] args) throws Exception {
+		
+		String plainText = "Example plain tx";
+		
+		KeyPair keyPair = Test_DS_2.generateKeyPair();
+		Base64.Encoder base64Encoder = Base64.getEncoder(); 
+			
+		// 개인키 생성
+		PrivateKey privateKey = keyPair.getPrivate();
+		byte[] privateKeyByte = privateKey.getEncoded();
+		String privateKeyBase64 = new String(base64Encoder.encode(privateKeyByte));
+		System.out.println(privateKeyBase64+System.lineSeparator());
+			
+		// 공개키 생성
+		PublicKey publicKey = keyPair.getPublic();
+		byte[] publicKeyByte = publicKey.getEncoded();
+		String publicKeyBase64 = new String(base64Encoder.encode(publicKeyByte));
+		System.out.println(publicKeyBase64+System.lineSeparator());
+		
+		//개인키로 서명
+		String signatureText = Test_DS_2.sign(plainText, privateKeyByte);
+					
+		//공개키로 검증
+		boolean ret = Test_DS_2.verify(plainText, signatureText, publicKeyByte);
+		System.out.println(ret);
+	}
+}
+
+
+class InvalidSignatureException extends RuntimeException {
+	
+    InvalidSignatureException(String message) {
+        super(message);
+        }
+}
