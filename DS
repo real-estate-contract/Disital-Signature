@@ -1,20 +1,22 @@
+package DS;
+
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.util.encoders.Hex;
 
 import java.io.*;
 import java.security.*;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-
 
 public class RSA_Sign {
     public static void main(String[] args) {
-        Security.addProvider(new BouncyCastleProvider());
+        // Bouncy Castle 보안 프로바이더 추가
+        Security.insertProviderAt(new BouncyCastleProvider(), 1);
 
         try {
             // Alice과 Bob이 각각 키 쌍 생성
             KeyPair aliceKeyPair = generateKeyPair();
+            System.out.println("Alice 키 쌍: " + aliceKeyPair);
+
             KeyPair bobKeyPair = generateKeyPair();
+            System.out.println("bob 키 쌍: " + bobKeyPair);
 
             // 각 사용자의 키를 파일로 저장
             saveKeyToFile(aliceKeyPair.getPrivate(), "alice_private_key.der");
@@ -23,7 +25,7 @@ public class RSA_Sign {
             saveKeyToFile(bobKeyPair.getPublic(), "bob_public_key.der");
 
             // 테스트할 파일. 상대경로로 지정해줌
-            String fileName = "src/test.pdf";
+            String fileName = "src/DS/Example_contract.pdf";
 
             // Alice이 메시지에 대한 서명 생성
             byte[] fileContent = readFileContent(fileName);
