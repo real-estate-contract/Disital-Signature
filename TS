@@ -1,0 +1,93 @@
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+
+import javax.imageio.ImageIO;
+
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+
+public class TimeStemp {
+    public static void main(String[] args) {
+        try {
+            // Step 1: 현재 시간을 얻어온다.
+            Calendar calendar = Calendar.getInstance();
+            String currentTime = new SimpleDateFormat("yyyy년 MM월 dd일 HH시 mm분 ss초").format(calendar.getTime());
+
+            // Step 2: 이미지에 타임스탬프를 찍어 저장한다.
+            createTimestampImage(currentTime);
+
+            // Step 3: PDF에 이미지를 삽입하여 새로운 PDF를 생성한다.
+            insertImageIntoPDF("Example_contract.pdf", "ts_stamp.png", "output_Example_contract.pdf", currentTime);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void createTimestampImage(String currentTime) throws IOException {
+        int imageWidth = 400;
+        int imageHeight = 400;
+
+        BufferedImage bufferedImage = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = bufferedImage.createGraphics();
+
+        // Background color (transparent)
+        graphics.setBackground(new Color(255, 255, 255, 0));
+        graphics.clearRect(0, 0, imageWidth, imageHeight);
+
+        // Draw timestamp in the center
+        Font font = new Font("SansSerif", Font.PLAIN, 20);
+        graphics.setFont(font);
+        graphics.setColor(Color.BLACK);
+
+        int textWidth = graphics.getFontMetrics().stringWidth(currentTime);
+        int x = (imageWidth - textWidth) / 2;
+        int y = imageHeight / 2;
+
+        graphics.drawString(currentTime, x, y);
+
+        graphics.dispose();
+
+        // Save the image to file
+        String imageFileName = "ts_stamp.png"; // 사용자가 정의한 파일 이름
+        ImageIO.write(bufferedImage, "png", new File(imageFileName));
+    }
+
+    private static void insertImageIntoPDF(String inputPDF, String stampImage, String outputPDF, String currentTime)
+            throws IOException {
+        // Load input PDF
+        try (PDDocument inputDocument = Loader.loadPDF((new File(inputPDF)))){
+
+            // Create a new page with the same size as the first page
+            PDPage firstPage = inputDocument.getPage(0);
+            PDPage newPage = new PDPage(firstPage.getMediaBox());
+            inputDocument.addPage(newPage);
+
+            // Load stamp image
+            try (FileInputStream imageStream = new FileInputStream(new File(stampImage))) {
+                PDImageXObject stampXObject = PDImageXObject.createFromByteArray(inputDocument, imageStream.readAllBytes(), "stamp");
+
+                // Get the content stream of the new page
+                try (PDPageContentStream contentStream = new PDPageContentStream(inputDocument, newPage, PDPageContentStream.AppendMode.APPEND, true)) {
+                    contentStream.drawImage(stampXObject, 400 - 100, 0, 100, 100); // Place stamp at top right corner
+                }
+            }
+
+            // Save the modified PDF
+            inputDocument.save(new FileOutputStream(outputPDF));
+
+            System.out.println("Timestamp image inserted into PDF: " + outputPDF);
+        }
+    }
+}
